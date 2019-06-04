@@ -7,7 +7,6 @@ import {
     FlatList,
     ActivityIndicator,
     Animated,
-    Easing
 } from 'react-native';
 import { PropTypes } from 'prop-types';
 import AppUtil from '../../utils/AppUtil';
@@ -18,28 +17,26 @@ import {
     defaultHeaderProps,
     defaultFooterProps,
 } from './RefreshConst';
-import { TouchableOpacity } from 'react-native-gesture-handler';
-
-const arrowImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAABQBAMAAAD8TNiNAAAAJ1BMVEUAAACqqqplZWVnZ2doaGhqampoaGhpaWlnZ2dmZmZlZWVmZmZnZ2duD78kAAAADHRSTlMAA6CYqZOlnI+Kg/B86E+1AAAAhklEQVQ4y+2LvQ3CQAxGLSHEBSg8AAX0jECTnhFosgcjZKr8StE3VHz5EkeRMkF0rzk/P58k9rgOW78j+TE99OoeKpEbCvcPVDJ0OvsJ9bQs6Jxs26h5HCrlr9w8vi8zHphfmI0fcvO/ZXJG8wDzcvDFO2Y/AJj9ADE7gXmlxFMIyVpJ7DECzC9J2EC2ECAAAAAASUVORK5CYII=';
-
-
 
 /**
- * 默认刷新头部组件
+ * 头部刷新组件的箭头或菊花
  */
-const arrowOrActivityComponent = (headerRefreshState, arrowAnimation) => {
+const headerArrowOrActivity = (headerRefreshState, arrowAnimation) => {
     if (headerRefreshState == HeaderRefreshState.Refreshing) {
         return (
-            <ActivityIndicator style={{ marginRight: 10 }} />
+            <ActivityIndicator
+                style={{ marginRight: 10 }}
+                size="small"
+                color={AppUtil.app_theme}
+            />
         );
     } else {
         return (
             <Animated.Image
-                source={{ uri: arrowImage }}
-                resizeMode={'contain'}
+                source={require('../../resource/images/arrow/refresh_arrow.png')}
                 style={{
-                    width: 14,
-                    height: 23,
+                    width: 20,
+                    height: 20,
                     marginRight: 10,
                     transform: [{
                         rotateZ: arrowAnimation.interpolate({
@@ -53,11 +50,9 @@ const arrowOrActivityComponent = (headerRefreshState, arrowAnimation) => {
     }
 }
 
-// /**
-//  * 头部刷新组件的Text组件
-//  * @param {RefreshState} refreshState   刷新状态
-//  * @param {{}} props 控件的props 
-//  */
+/**
+ * 头部刷新组件的Text组件
+ */
 const headerTitleComponent = (headerRefreshState, props) => {
     const { headerIdleText, headerPullingText, headerRefreshingText } = props;
 
@@ -82,6 +77,63 @@ const headerTitleComponent = (headerRefreshState, props) => {
             {headerTitle}
         </Text>
     );
+}
+
+// 默认加载更多组件
+export const defaultFooterRefreshComponent = ({
+    footerRefreshState,
+    footerRefreshingText,
+    footerFailureText,
+    footerNoMoreDataText,
+    footerEmptyDataText,
+    onHeaderRefresh,
+    onFooterRefresh,
+    data }) => {
+    switch (footerRefreshState) {
+        case FooterRefreshState.Idle:
+            return (
+                <View style={styles.footerContainer} />
+            );
+        case FooterRefreshState.Refreshing:
+            return (
+                <View style={styles.footerContainer} >
+                    <ActivityIndicator size="small" color={AppUtil.app_theme} />
+                    <Text style={[styles.footerText, { marginLeft: 7 }]}>
+                        {footerRefreshingText}
+                    </Text>
+                </View>
+            );
+        case FooterRefreshState.Failure:
+            return (
+                <TouchableOpacity onPress={() => {
+                    if (AppUtil.isEmptyArray(data)) {
+                        onHeaderRefresh && onHeaderRefresh();
+                    } else {
+                        onFooterRefresh && onFooterRefresh();
+                    } Î
+                }}>
+                    <View style={styles.footerContainer}>
+                        <Text style={styles.footerText}>{footerFailureText}</Text>
+                    </View>
+                </TouchableOpacity>
+            );
+        case FooterRefreshState.EmptyData:
+            return (
+                <TouchableOpacity onPress={() => { onHeaderRefresh && onHeaderRefresh(); }}>
+                    <View style={styles.footerContainer}>
+                        <Text style={styles.footerText}>{footerEmptyDataText}</Text>
+                    </View>
+                </TouchableOpacity>
+            );
+        case FooterRefreshState.NoMoreData:
+            return (
+                <View style={styles.footerContainer} >
+                    <Text style={styles.footerText}>{footerNoMoreDataText}</Text>
+                </View>
+            );
+    }
+
+    return null;
 }
 
 export default class RefreshFlatList extends Component {
@@ -130,7 +182,6 @@ export default class RefreshFlatList extends Component {
 
         const { headerHeight, footerHeight } = this.props;
 
-        this.offsetY = 0;
         this.isDragging = false;
         this.headerHeight = headerHeight;
         this.footerHeight = footerHeight;
@@ -145,17 +196,17 @@ export default class RefreshFlatList extends Component {
     componentWillReceiveProps(nextProps) {
         const { headerIsRefreshing, listRef } = nextProps;
 
+
         if (headerIsRefreshing !== this.props.headerIsRefreshing) {
             // console.log('调用一下'+ headerIsRefreshing + this.props.headerIsRefreshing);
-
             const offset = headerIsRefreshing ? -this.headerHeight : 0;
             const headerRefreshState = headerIsRefreshing ? HeaderRefreshState.Refreshing : HeaderRefreshState.Idle;
+
+            if (!headerIsRefreshing) this.state.arrowAnimation.setValue(0);
 
             this.refs[listRef].scrollToOffset({ animated: true, offset });
             this.setState({ headerRefreshState });
         }
-
-        return true;
     }
 
     /**
@@ -167,11 +218,8 @@ export default class RefreshFlatList extends Component {
 
         if (headerRefreshComponent) {
             return (
-                <View style={{
-                    marginTop: -this.headerHeight,
-                    height: this.headerHeight
-                }}>
-                    {headerRefreshComponent(headerRefreshState, this.offsetY)}
+                <View style={{ marginTop: -this.headerHeight, height: this.headerHeight }}>
+                    {headerRefreshComponent(headerRefreshState)}
                 </View>
             );
         } else {
@@ -183,7 +231,7 @@ export default class RefreshFlatList extends Component {
                     marginTop: -this.headerHeight,
                     height: this.headerHeight
                 }} >
-                    {arrowOrActivityComponent(headerRefreshState, arrowAnimation)}
+                    {headerArrowOrActivity(headerRefreshState, arrowAnimation)}
                     {headerTitleComponent(headerRefreshState, this.props)}
                 </View >
             );
@@ -194,19 +242,11 @@ export default class RefreshFlatList extends Component {
      * 加载更多组件
      */
     _renderFooter = () => {
+        console.log('调用_renderFooter');
+
         const {
             footerRefreshState,
-
-            footerRefreshingText,
-            footerFailureText,
-            footerNoMoreDataText,
-            footerEmptyDataText,
-
             footerRefreshComponent,
-
-            onHeaderRefresh,
-            onFooterRefresh,
-            data,
         } = this.props;
 
         if (footerRefreshComponent) {
@@ -214,69 +254,14 @@ export default class RefreshFlatList extends Component {
             if (component) return component;
         }
 
-        // 这里要重新写过 
-        switch (footerRefreshState) {
-            case FooterRefreshState.Idle: {
-                return (
-                    <View style={styles.footerContainer} />
-                );
-            }
-            case FooterRefreshState.Refreshing: {
-                return (
-                    <View style={styles.footerContainer} >
-                        <ActivityIndicator size="small" color={AppUtil.app_theme} />
-                        <Text style={[styles.footerText, { marginLeft: 7 }]}>
-                            {footerRefreshingText}
-                        </Text>
-                    </View>
-                );
-            }
-            case FooterRefreshState.Failure: {
-                const pressHandler = () => {
-                    if (AppUtil.isEmptyArray(data)) {
-                        onHeaderRefresh && onHeaderRefresh();
-                    } else {
-                        onFooterRefresh && onFooterRefresh();
-                    }
-                };
-
-                return (
-                    <TouchableOpacity onPress={() => pressHandler()}>
-                        <View style={styles.footerContainer}>
-                            <Text style={styles.footerText}>{footerFailureText}</Text>
-                        </View>
-                    </TouchableOpacity>
-                );
-            }
-            case FooterRefreshState.EmptyData: {
-                return (
-                    <TouchableOpacity onPress={() => { onHeaderRefresh && onHeaderRefresh(); }}>
-                        <View style={styles.footerContainer}>
-                            <Text style={styles.footerText}>{footerEmptyDataText}</Text>
-                        </View>
-                    </TouchableOpacity>
-                );
-            }
-            case FooterRefreshState.NoMoreData: {
-                return (
-                    <View style={styles.footerContainer} >
-                        <Text style={styles.footerText}>
-                            {footerNoMoreDataText}
-                        </Text>
-                    </View>
-                );
-            }
-        }
-
-        return null;
+        return defaultFooterRefreshComponent({ ...this.props });
     }
 
     render() {
         return (
             <FlatList
                 {...this.props}
-                ref='flatList'
-                scrollEventThrottle={16}
+                ref={this.props.listRef}
                 onScroll={event => this._onScroll(event)}
                 onScrollEndDrag={event => this._onScrollEndDrag(event)}
                 onScrollBeginDrag={event => this._onScrollBeginDrag(event)}
@@ -288,46 +273,23 @@ export default class RefreshFlatList extends Component {
         );
     }
 
-    // /**
-    //  * 手动调用下拉刷新
-    //  */
-    // beginRefresh() {
-    //     this._headerBeginRefresh();
-    // }
-
-    // /**
-    //  * 手动结束
-    //  */
-    // endRefresh() {
-    //     this._headerEndRefresh();
-    // }
-
     /**
      * 列表正在滚动
      * @private
      * @param {{}} event 
      */
     _onScroll(event) {
-        this.offsetY = event.nativeEvent.contentOffset.y;
-
+        const offsetY = event.nativeEvent.contentOffset.y;
         if (this.isDragging) {
             if (!this._isRefreshing()) {
-                if (this.offsetY <= -this.headerHeight) {
+                if (offsetY <= -this.headerHeight) {
                     // 松开以刷新
                     this.setState({ headerRefreshState: HeaderRefreshState.Pulling });
-                    // Animated.timing(this.state.arrowAnimation, {
-                    //     toValue: 1,
-                    //     duration: 50,
-                    //     easing: Easing.inOut(Easing.quad)
-                    // }).start();
+                    this.state.arrowAnimation.setValue(1);
                 } else {
                     // 下拉以刷新
                     this.setState({ headerRefreshState: HeaderRefreshState.Idle });
-                    // Animated.timing(this.state.arrowAnimation, {
-                    //     toValue: 0,
-                    //     duration: 100,
-                    //     easing: Easing.inOut(Easing.quad)
-                    // }).start();
+                    this.state.arrowAnimation.setValue(0);
                 }
             }
         }
@@ -340,7 +302,6 @@ export default class RefreshFlatList extends Component {
      */
     _onScrollBeginDrag(event) {
         this.isDragging = true;
-        this.offsetY = event.nativeEvent.contentOffset.y;
     }
 
     /**
@@ -350,18 +311,18 @@ export default class RefreshFlatList extends Component {
      */
     _onScrollEndDrag(event) {
         this.isDragging = false;
-        this.offsetY = event.nativeEvent.contentOffset.y;
+        const offsetY = event.nativeEvent.contentOffset.y;
+        const { listRef, onHeaderRefresh } = this.props;
 
         if (!this._isRefreshing()) {
             if (this.state.headerRefreshState === HeaderRefreshState.Pulling) {
-                this.props.onHeaderRefresh && this.props.onHeaderRefresh();
+                this.refs[listRef].scrollToOffset({ animated: true, offset: -this.headerHeight });
+                this.setState({ headerRefreshState: HeaderRefreshState.Refreshing });
+                onHeaderRefresh && onHeaderRefresh();
             }
         } else {
-            if (this.offsetY <= 0) {
-                this.refs[this.props.listRef].scrollToOffset({
-                    animated: true,
-                    offset: -this.headerHeight
-                });
+            if (offsetY <= 0) {
+                this.refs[listRef].scrollToOffset({ animated: true, offset: -this.headerHeight });
             }
         }
     }
@@ -377,43 +338,14 @@ export default class RefreshFlatList extends Component {
     }
 
     /**
-     * 头部刷新结束
-     */
-    _headerEndRefresh() {
-        this.setState({ headerRefreshState: HeaderRefreshState.Idle });
-
-        // Animated.timing(this.state.arrowAnimation, {
-        //     toValue: 0,
-        //     duration: 100,
-        //     easing: Easing.inOut(Easing.quad)
-        // }).start();
-
-        const { listRef } = this.props;
-        this.refs[listRef].scrollToOffset({ animated: true, offset: 0 });
-    }
-
-    // /**
-    //  * 触发头部刷新
-    //  */
-    // _headerBeginRefresh = () => {
-    //     const { onHeaderRefresh, listRef } = this.props;
-
-    //     if (this._isRefreshing()) return;
-
-    //     this.refs[listRef].scrollToOffset({ animated: true, offset: -this.headerHeight });
-
-    //     this.setState({ headerRefreshState: HeaderRefreshState.Refreshing });
-
-    //     onHeaderRefresh && onHeaderRefresh();
-    // }
-
-    /**
      * 触发加载更多
      */
     _onEndReached = () => {
         const { onFooterRefresh, data } = this.props;
 
-        if (!this._isRefreshing() && !AppUtil.isEmptyArray(data)) {
+        if (!this._isRefreshing() &&
+            !AppUtil.isEmptyArray(data) &&
+            this.props.footerRefreshState !== FooterRefreshState.NoMoreData) {
             onFooterRefresh && onFooterRefresh();
         }
     }
